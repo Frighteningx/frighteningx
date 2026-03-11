@@ -1,0 +1,892 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Lecturas Center</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>📚</text></svg>">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* Gama de verdes claros corporativos */
+        :root { --mint: #e8f5e9; --tea-green: #c8e6c9; --dark-green: #1b5e20; }
+        body { background: linear-gradient(135deg, var(--mint), var(--tea-green)); min-height: 100vh; color: #2d3748; font-family: -apple-system, BlinkMacSystemFont, sans-serif; }
+        .glass { background: rgba(255, 255, 255, 0.85); backdrop-filter: blur(12px); border: 1px solid rgba(255, 255, 255, 0.6); border-radius: 24px; }
+        .genre-bubble { cursor: pointer; border: 2px solid transparent; transition: 0.2s; }
+        .genre-bubble.selected { transform: scale(1.1); border-color: #2e7d32; background-color: #2e7d32 !important; color: white !important;}
+        .tab-btn { transition: all 0.2s; }
+        .tab-btn.active { color: #1b5e20; border-bottom: 3px solid #1b5e20; font-weight: 900; }
+        .animate-up { animation: slideUp 0.3s cubic-bezier(0.4, 0, 0.2, 1) forwards; }
+        @keyframes slideUp { from { opacity: 0; transform: translateY(15px); } to { opacity: 1; transform: translateY(0); } }
+        .progress-bar-fill { transition: width 0.8s ease-out; }
+    </style>
+</head>
+<body class="p-3 pb-20">
+
+    <div id="loading-screen" class="fixed inset-0 bg-white/95 flex flex-col items-center justify-center z-[100] backdrop-blur-md">
+        <div class="animate-bounce text-6xl mb-4 shadow-xl rounded-full bg-green-50 p-4 border border-green-100">📚</div>
+        <p class="font-black text-green-800 animate-pulse tracking-widest text-sm uppercase">Preparando biblioteca...</p>
+    </div>
+
+    <div id="user-selection" class="hidden flex flex-col items-center justify-center h-screen space-y-8">
+        <h1 class="text-5xl font-black text-green-900 tracking-tighter drop-shadow-sm flex items-center gap-2">Lecturas Center</h1>
+        <div id="profile-container" class="flex flex-wrap justify-center gap-6 w-full px-4"></div>
+    </div>
+
+    <div id="app-main" class="hidden max-w-md mx-auto space-y-4">
+        <header class="bg-white/70 p-4 rounded-[30px] shadow-sm backdrop-blur-md border border-white">
+            <div class="flex justify-between items-start mb-2">
+                <div class="flex items-center gap-3">
+                    <button onclick="openAvatarSelector()" id="main-avatar" class="text-3xl bg-green-50 rounded-full w-12 h-12 flex items-center justify-center shadow-lg active:scale-90 border-2 border-green-200"></button>
+                    <div>
+                        <p class="text-[9px] font-black text-green-600 uppercase tracking-widest">Lector en turno,</p>
+                        <div class="flex items-center gap-2 mt-0.5">
+                            <h2 id="welcome" class="text-xl font-black text-green-900 leading-none"></h2>
+                            <button onclick="openMatchModal()" class="bg-teal-100 text-teal-700 px-2 py-0.5 rounded text-[9px] font-black shadow-sm active:scale-95 transition border border-teal-200 flex items-center gap-1">💞 MATCH</button>
+                        </div>
+                    </div>
+                </div>
+                <div class="flex flex-col items-end gap-1">
+                    <span class="text-[10px] font-black text-green-700 uppercase tracking-widest bg-white px-2 py-0.5 rounded-full shadow-sm">Library App</span>
+                    <button onclick="location.reload()" class="bg-white p-2 rounded-full text-xs shadow-sm active:scale-90 font-bold text-green-800">🔄</button>
+                </div>
+            </div>
+            <div id="missions-widget" class="mt-3 space-y-1.5 hidden"></div>
+        </header>
+
+        <nav class="flex justify-between bg-white/80 rounded-2xl overflow-hidden shadow-sm backdrop-blur-sm border border-white px-1 mt-2">
+            <button onclick="showTab('explorar')" id="btn-explorar" class="tab-btn active p-3 font-bold text-[9px] uppercase">🔍 Buscar</button>
+            <button onclick="showTab('prioridades')" id="btn-prioridades" class="tab-btn p-3 font-bold text-[9px] uppercase">🔖 Por Leer</button>
+            <button onclick="showTab('historial')" id="btn-historial" class="tab-btn p-3 font-bold text-[9px] uppercase">✅ Leídos</button>
+            <button onclick="showTab('favoritos')" id="btn-favoritos" class="tab-btn p-3 font-bold text-[9px] uppercase">⭐ Autores</button>
+            <button onclick="showTab('misiones')" id="btn-misiones" class="tab-btn p-3 font-bold text-[9px] uppercase text-emerald-600">🏆 Misión</button>
+        </nav>
+
+        <section id="tab-explorar" class="tab-content space-y-4 animate-up">
+            <div class="glass p-5 space-y-4">
+                <div class="flex justify-center mb-2">
+                    <div class="bg-green-100 p-1 rounded-full flex gap-1 shadow-inner w-full max-w-[250px]">
+                        <button id="mode-text-btn" onclick="setSearchMode('text')" class="switch-btn flex-1 px-4 py-1.5 rounded-full text-xs font-black text-green-700 bg-white shadow-sm">Título</button>
+                        <button id="mode-filter-btn" onclick="setSearchMode('filters')" class="switch-btn active flex-1 px-4 py-1.5 rounded-full text-xs font-black text-green-600/60 hover:text-green-700">Categorías</button>
+                    </div>
+                </div>
+
+                <div id="search-text-container" class="space-y-3">
+                    <input type="text" id="search-input" placeholder="Ej: Hábitos Atómicos, El Señor de los Anillos..." class="w-full p-4 rounded-xl bg-white/90 border border-green-100 font-bold outline-none text-sm focus:border-green-400">
+                    <button onclick="fetchBooks(false)" class="w-full py-3 bg-green-700 text-white rounded-xl font-black shadow-lg shadow-green-200 active:scale-95 transition">BUSCAR LIBRO 🔍</button>
+                </div>
+
+                <div id="search-filter-container" class="space-y-4 hidden">
+                    <div id="genre-container" class="flex flex-wrap gap-2 mt-1"></div>
+                    <button onclick="fetchBooks(false)" class="w-full py-3 bg-green-700 text-white rounded-xl font-black shadow-lg shadow-green-200 active:scale-95 transition">DESCUBRIR ✨</button>
+                </div>
+            </div>
+            
+            <div id="search-title" class="font-black text-green-900 pl-2 hidden">Resultados:</div>
+            <div id="movie-results" class="space-y-3"></div>
+            <button id="btn-load-more" onclick="fetchBooks(true)" class="hidden w-full py-3 bg-white text-green-700 rounded-xl font-black shadow-sm mt-4 text-xs border border-green-100">Cargar más libros ⬇️</button>
+        </section>
+
+        <section id="tab-prioridades" class="tab-content hidden space-y-3 animate-up pb-10"></section>
+        <section id="tab-historial" class="tab-content hidden space-y-3 animate-up pb-10"></section>
+
+        <section id="tab-favoritos" class="tab-content hidden space-y-3 animate-up pb-10">
+            <h3 class="font-black text-sm text-green-900 pl-2">Mis Autores Favoritos ⭐</h3>
+            <div id="fav-list" class="grid grid-cols-3 gap-2 mt-3"></div>
+            <div id="fav-movies-container" class="hidden mt-6 pt-4 border-t-2 border-green-100">
+                <div class="flex justify-between items-center mb-4 pl-2">
+                    <h4 id="fav-movies-title" class="font-black text-xs text-green-900"></h4>
+                    <button onclick="closeFavMovies()" class="text-[10px] bg-red-50 text-red-600 px-3 py-1 rounded-lg font-black shadow-sm border border-red-100">CERRAR ✕</button>
+                </div>
+                <div id="fav-movies-results" class="space-y-3"></div>
+            </div>
+        </section>
+
+        <section id="tab-misiones" class="tab-content hidden space-y-4 animate-up pb-10">
+            <h3 class="font-black text-sm text-emerald-700 pl-2">Centro de Retos 🏆</h3>
+            <p class="text-[10px] text-green-700/80 pl-2 leading-tight">Completa misiones de lectura para ganar medallas operacionales.</p>
+            <div id="missions-catalog" class="space-y-3 mt-4"></div>
+        </section>
+    </div>
+
+    <div id="avatar-modal" class="fixed inset-0 bg-black/60 hidden flex items-center justify-center p-4 z-[300] backdrop-blur-sm">
+        <div class="bg-white p-6 w-full max-w-xs space-y-4 rounded-[30px] shadow-2xl animate-up border-2 border-green-100">
+            <h3 class="font-black text-green-900 text-center text-lg">Elige tu Avatar</h3>
+            <div class="grid grid-cols-4 gap-4 text-3xl text-center">
+                <span onclick="setEmoji('🤓')" class="cursor-pointer active:scale-90 hover:bg-green-50 rounded-lg p-1">🤓</span>
+                <span onclick="setEmoji('📚')" class="cursor-pointer active:scale-90 hover:bg-green-50 rounded-lg p-1">📚</span>
+                <span onclick="setEmoji('🦉')" class="cursor-pointer active:scale-90 hover:bg-green-50 rounded-lg p-1">🦉</span>
+                <span onclick="setEmoji('☕')" class="cursor-pointer active:scale-90 hover:bg-green-50 rounded-lg p-1">☕</span>
+                <span onclick="setEmoji('🧠')" class="cursor-pointer active:scale-90 hover:bg-green-50 rounded-lg p-1">🧠</span>
+                <span onclick="setEmoji('✨')" class="cursor-pointer active:scale-90 hover:bg-green-50 rounded-lg p-1">✨</span>
+                <span onclick="setEmoji('🚀')" class="cursor-pointer active:scale-90 hover:bg-green-50 rounded-lg p-1">🚀</span>
+                <span onclick="setEmoji('🕵️')" class="cursor-pointer active:scale-90 hover:bg-green-50 rounded-lg p-1">🕵️</span>
+            </div>
+            <button onclick="closeAvatarSelector()" class="w-full py-3 bg-gray-100 text-gray-500 rounded-xl font-bold text-xs mt-2">CANCELAR</button>
+        </div>
+    </div>
+
+    <div id="movie-detail-modal" class="fixed inset-0 bg-black/80 hidden flex flex-col justify-end z-[200] backdrop-blur-sm transition-all">
+        <div class="bg-white rounded-t-[30px] w-full max-h-[95vh] overflow-y-auto animate-up flex flex-col relative pb-8 shadow-2xl">
+            <button type="button" onclick="closeDetailModal(); event.stopPropagation();" class="absolute top-4 right-4 bg-black/50 backdrop-blur-lg text-white w-8 h-8 rounded-full font-black text-sm z-[300] shadow border border-white/30 cursor-pointer active:scale-90">✕</button>
+            
+            <div class="w-full h-40 min-h-[10rem] shrink-0 bg-green-800 relative rounded-t-[30px] flex items-center justify-center overflow-hidden">
+                <div id="detail-header-bg" class="absolute inset-0 bg-cover bg-center opacity-30 blur-sm scale-110"></div>
+                <div class="absolute inset-0 bg-gradient-to-t from-white via-white/80 to-transparent z-20"></div>
+            </div>
+
+            <div class="px-5 -mt-24 relative z-30">
+                <div class="flex gap-4 items-end mb-4">
+                    <img id="detail-poster-img" src="" class="w-28 h-40 shrink-0 rounded-xl shadow-xl border-4 border-white object-cover bg-gray-100">
+                    <div class="pb-1">
+                        <h2 id="detail-title" class="text-xl font-black text-green-900 leading-tight mb-1"></h2>
+                        <p id="detail-author-subtitle" class="text-[11px] font-bold text-green-700 leading-tight mb-2"></p>
+                        <div class="flex flex-wrap gap-1 mt-1.5">
+                            <span id="detail-year" class="text-[9px] font-black text-white bg-green-700 px-2 py-0.5 rounded uppercase shadow-sm"></span>
+                            <span id="detail-pages" class="text-[9px] font-black text-green-800 bg-green-100 border border-green-200 px-2 py-0.5 rounded shadow-sm"></span>
+                        </div>
+                        <div id="detail-genres-container" class="flex flex-wrap gap-1 mt-2"></div>
+                    </div>
+                </div>
+
+                <div class="bg-green-50/50 p-4 rounded-xl text-[11px] text-gray-700 leading-relaxed shadow-inner border border-green-100 max-h-32 overflow-y-auto mb-4">
+                    <p id="detail-overview" class="italic"></p>
+                </div>
+
+                <div class="grid grid-cols-2 gap-3 text-xs mt-3">
+                    <div class="bg-white p-3 rounded-xl border border-green-100 shadow-sm flex flex-col">
+                        <p class="font-black text-green-500 uppercase text-[8px] mb-1">Autor / Escritor</p>
+                        <div id="detail-director" class="font-bold text-gray-800 leading-tight"></div>
+                    </div>
+                    <div class="bg-white p-3 rounded-xl border border-green-100 shadow-sm flex flex-col">
+                        <p class="font-black text-green-500 uppercase text-[8px] mb-1">Editorial</p>
+                        <div id="detail-producer" class="font-bold text-gray-800 leading-tight"></div>
+                    </div>
+                </div>
+                
+                <div id="detail-actions" class="pt-5 space-y-2"></div>
+            </div>
+        </div>
+    </div>
+
+    <div id="feedback-modal" class="fixed inset-0 bg-black/60 hidden flex items-center justify-center p-4 z-[300] backdrop-blur-sm">
+        <div class="bg-white p-6 w-full max-w-sm space-y-4 rounded-3xl animate-up shadow-2xl border border-green-100">
+            <h3 class="font-black text-green-900 text-lg text-center">¿Qué tal estuvo la lectura?</h3>
+            <p id="f-movie-title" class="text-[10px] font-bold text-gray-500 text-center uppercase tracking-widest bg-green-50 py-2 rounded-lg"></p>
+            <select id="f-rating" class="w-full p-3 rounded-xl bg-white border border-green-200 font-bold text-sm text-gray-800 outline-none shadow-sm focus:border-green-500">
+                <option value="😍 Obra Maestra">😍 Obra Maestra (5/5)</option>
+                <option value="😊 Muy bueno">😊 Muy bueno (4/5)</option>
+                <option value="😐 Pasable">😐 Pasable (3/5)</option>
+                <option value="💩 Malo">💩 Malo (1-2/5)</option>
+            </select>
+            <textarea id="f-comment" placeholder="Tus apuntes o resumen (Opcional)..." class="w-full p-3 rounded-xl bg-white border border-green-200 text-sm h-20 outline-none shadow-sm focus:border-green-500"></textarea>
+            <div class="flex gap-2">
+                <button onclick="closeFeedbackModal()" class="py-3 px-4 bg-gray-100 text-gray-600 rounded-xl font-bold text-xs">Cancelar</button>
+                <button onclick="submitFeedback()" class="flex-1 py-3 bg-green-600 text-white rounded-xl font-black shadow-lg shadow-green-200 text-xs active:scale-95 transition">GUARDAR LECTURA ✅</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="match-modal" class="fixed inset-0 bg-black/80 hidden flex flex-col justify-end z-[400] backdrop-blur-sm transition-all">
+        <div class="bg-white rounded-t-[30px] w-full max-h-[85vh] overflow-y-auto animate-up flex flex-col relative pb-8 shadow-2xl">
+            <button type="button" onclick="closeMatchModal(); event.stopPropagation();" class="absolute top-4 right-4 bg-black/10 backdrop-blur-md text-gray-800 w-8 h-8 rounded-full font-black text-sm z-[300] shadow-sm border border-gray-200 cursor-pointer active:scale-90">✕</button>
+            
+            <div class="p-6">
+                <h2 id="match-title-text" class="text-2xl font-black text-teal-700 mb-5 flex items-center gap-2 drop-shadow-sm">💞 Book Match</h2>
+                
+                <div class="space-y-4">
+                    <div class="bg-orange-50/70 p-3 rounded-2xl border border-orange-100 shadow-inner">
+                        <h3 class="font-black text-[10px] text-orange-800 mb-2 uppercase tracking-widest flex items-center gap-1">🔖 Por leer en común</h3>
+                        <div id="match-pending-list" class="max-h-40 overflow-y-auto pr-1"></div>
+                    </div>
+
+                    <div class="bg-green-50/70 p-3 rounded-2xl border border-green-100 shadow-inner">
+                        <h3 class="font-black text-[10px] text-green-800 mb-2 uppercase tracking-widest flex items-center gap-1">✅ Leídos en común</h3>
+                        <div id="match-watched-list" class="max-h-40 overflow-y-auto pr-1"></div>
+                    </div>
+
+                    <div class="bg-yellow-50/70 p-3 rounded-2xl border border-yellow-100 shadow-inner">
+                        <h3 class="font-black text-[10px] text-yellow-800 mb-2 uppercase tracking-widest flex items-center gap-1">⭐ Autores favoritos en común</h3>
+                        <div id="match-favs-list" class="grid grid-cols-3 gap-2 mt-2"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Google Books API no requiere Key para búsquedas públicas básicas.
+        const GAS_URL = 'https://script.google.com/macros/s/AKfycbzjpMySovnvqpGXUOldBB-Ia8TzlGLVuo9-Ge6JGQWPPHvLbpwR0wHpgcE-sJCC-p-eBQ/exec';
+
+        let currentUser = "";
+        let selectedGenres = [];
+        let globalHistory = [];
+        let globalFavorites = [];
+        let profiles = [];
+        let currentMovieData = null; // Lo mantendremos así por retrocompatibilidad de tus variables, aunque sean libros.
+        let activeMovieIdForFeedback = null;
+        let searchPage = 0; // Google Books usa índices basados en 0 (0, 10, 20...)
+        let currentSearchMode = 'text'; 
+
+        // Categorías sugeridas para Libros
+        const genres_books = [
+            {id:"Fiction", name:"Ficción"}, {id:"Science", name:"Ciencia"}, 
+            {id:"History", name:"Historia"}, {id:"Business", name:"Negocios"}, 
+            {id:"Self-Help", name:"Autoayuda"}, {id:"Fantasy", name:"Fantasía"}, 
+            {id:"Thriller", name:"Thriller"}, {id:"Biography", name:"Biografía"}
+        ];
+
+        // Misiones adaptadas a KPIs de Lectura
+        const MISSIONS_DB = [
+            { id: 'm1', name: 'Lector Novato', desc: 'Termina de leer 1 libro.', target: 1, eval: (vistas) => vistas.length },
+            { id: 'm2', name: 'Crítico Literario', desc: 'Califica 2 libros como "Obra Maestra".', target: 2, eval: (vistas) => vistas.filter(m => String(m.calificacion).includes('Obra Maestra')).length },
+            { id: 'm3', name: 'Explorador', desc: 'Agrega 3 autores a favoritos.', target: 3, eval: (vistas, favs) => favs.length },
+            { id: 'm4', name: 'Devorador de Libros', desc: 'Lee 5 libros en total.', target: 5, eval: (vistas) => vistas.length },
+            { id: 'm5', name: 'Lector Maratónico', desc: 'Lee más de 1000 páginas en total.', target: 1000, eval: (vistas) => vistas.reduce((sum, m) => sum + (parseInt(m.paginas) || 0), 0) }
+        ];
+
+        window.onload = async () => {
+            setSearchMode('text');
+            try {
+                const res = await fetch(`${GAS_URL}?action=getProfiles`);
+                profiles = await res.json();
+                renderProfiles();
+                document.getElementById('loading-screen').classList.add('hidden');
+                document.getElementById('user-selection').classList.remove('hidden');
+            } catch(e) { alert("Error de conexión. Revisa Apps Script."); }
+        };
+
+        function renderProfiles() {
+            const container = document.getElementById('profile-container');
+            container.innerHTML = "";
+            profiles.forEach(p => {
+                container.innerHTML += `<button onclick="selectUser('${p.user}', '${p.emoji}')" class="flex flex-col items-center"><div class="w-24 h-24 bg-white rounded-full mb-2 shadow-2xl flex items-center justify-center text-5xl border-4 border-green-100 active:scale-90 transition hover:border-green-400">${p.emoji}</div><span class="font-black text-green-900 text-lg">${p.user}</span></button>`;
+            });
+        }
+
+        async function selectUser(user, emoji) {
+            currentUser = user;
+            document.getElementById('user-selection').classList.add('hidden');
+            document.getElementById('app-main').classList.remove('hidden');
+            document.getElementById('welcome').innerText = user;
+            document.getElementById('main-avatar').innerText = emoji;
+            renderGenres();
+            showTab('explorar');
+            await loadData();
+        }
+
+        function openAvatarSelector() { document.getElementById('avatar-modal').classList.remove('hidden'); }
+        function closeAvatarSelector() { document.getElementById('avatar-modal').classList.add('hidden'); }
+        async function setEmoji(em) {
+            document.getElementById('main-avatar').innerText = em;
+            closeAvatarSelector();
+            const p = profiles.find(x => x.user === currentUser);
+            if(p) p.emoji = em; 
+            await fetch(GAS_URL, { method: 'POST', mode: 'no-cors', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify({ action: 'updateEmoji', user: currentUser, emoji: em }) });
+        }
+
+        function isWatched(val) { return String(val).toUpperCase() === "TRUE" || val === true; }
+
+        async function loadData() {
+            try {
+                const [histRes, favRes] = await Promise.all([ fetch(`${GAS_URL}?action=getHistory`), fetch(`${GAS_URL}?action=getFavorites`) ]);
+                globalHistory = await histRes.json();
+                globalFavorites = await favRes.json();
+                if(!Array.isArray(globalFavorites)) globalFavorites = []; 
+                renderWatchlist();
+                renderHistoryTab();
+                renderFavoritesTab();
+                renderMissions();
+            } catch(e) { console.log("Historial vacío o error en la carga."); }
+        }
+
+        function getMyMissions() {
+            const p = profiles.find(x => x.user === currentUser);
+            return p && p.missions ? p.missions.split(',').filter(x => x) : [];
+        }
+
+        async function toggleMission(mId) {
+            let active = getMyMissions();
+            if (active.includes(mId)) {
+                active = active.filter(id => id !== mId);
+            } else {
+                if(active.length >= 3) { alert("Máximo 3 misiones activas."); return; }
+                active.push(mId);
+            }
+            const p = profiles.find(x => x.user === currentUser);
+            if(p) p.missions = active.join(',');
+            
+            renderMissions();
+            await fetch(GAS_URL, { method: 'POST', mode: 'no-cors', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify({ action: 'updateMissions', user: currentUser, missions: active.join(',') }) });
+        }
+
+        function renderMissions() {
+            const activeIds = getMyMissions();
+            const widget = document.getElementById('missions-widget');
+            const catalog = document.getElementById('missions-catalog');
+            
+            const myViews = getLatestStates().filter(s => isWatched(s.vista_completa));
+            const myFavs = globalFavorites.filter(f => f.user === currentUser);
+
+            widget.innerHTML = ""; catalog.innerHTML = "";
+            
+            if(activeIds.length > 0) widget.classList.remove('hidden');
+            else widget.classList.add('hidden');
+
+            MISSIONS_DB.forEach(m => {
+                const isActive = activeIds.includes(m.id);
+                let rawProgress = m.eval(myViews, myFavs);
+                let progress = rawProgress > m.target ? m.target : rawProgress;
+                let percent = (progress / m.target) * 100;
+                let isComplete = progress >= m.target;
+
+                catalog.innerHTML += `
+                    <div class="bg-white p-4 rounded-2xl shadow-sm border ${isComplete ? 'border-emerald-300 bg-emerald-50' : (isActive ? 'border-teal-300' : 'border-green-100')} relative">
+                        ${isComplete ? '<span class="absolute top-2 right-2 text-xl">✅</span>' : ''}
+                        <h4 class="font-black text-[13px] text-gray-800">${m.name}</h4>
+                        <p class="text-[10px] text-gray-500 mt-1">${m.desc}</p>
+                        <div class="mt-3 flex items-center gap-3">
+                            <div class="w-full bg-gray-100 rounded-full h-2 overflow-hidden shadow-inner">
+                                <div class="bg-gradient-to-r ${isComplete ? 'from-emerald-400 to-emerald-500' : 'from-teal-400 to-green-400'} h-2 rounded-full progress-bar-fill" style="width: ${percent}%"></div>
+                            </div>
+                            <span class="text-[9px] font-black ${isComplete ? 'text-emerald-600' : 'text-gray-500'}">${progress}/${m.target}</span>
+                        </div>
+                        ${!isComplete ? `<button onclick="toggleMission('${m.id}')" class="mt-3 w-full py-2 rounded-xl text-[10px] font-black ${isActive ? 'bg-gray-100 text-gray-600' : 'bg-teal-50 text-teal-700 border border-teal-100'} active:scale-95 transition">${isActive ? 'Ocultar Reto' : 'Activar Reto'}</button>` : ''}
+                    </div>
+                `;
+
+                if(isActive) {
+                    widget.innerHTML += `
+                        <div class="flex items-center gap-2">
+                            <p class="text-[8px] font-black uppercase w-16 truncate ${isComplete ? 'text-emerald-600' : 'text-teal-700'}">${m.name}</p>
+                            <div class="flex-1 bg-white/50 rounded-full h-1.5 overflow-hidden shadow-inner border border-white/40">
+                                <div class="bg-gradient-to-r ${isComplete ? 'from-emerald-400 to-emerald-600' : 'from-teal-400 to-green-500'} h-full rounded-full" style="width: ${percent}%"></div>
+                            </div>
+                        </div>
+                    `;
+                }
+            });
+        }
+
+        function renderGenres() {
+            const container = document.getElementById('genre-container');
+            container.innerHTML = "";
+            genres_books.forEach(g => {
+                const b = document.createElement('div');
+                b.className = 'genre-bubble px-3 py-1.5 text-[10px] font-black uppercase rounded-lg text-green-700 bg-white border border-green-100 shadow-sm';
+                b.innerText = g.name;
+                b.onclick = () => {
+                    if(selectedGenres.includes(g.id)) { selectedGenres = selectedGenres.filter(i=>i!==g.id); b.classList.remove('selected'); b.style.backgroundColor=''; b.style.color=''; } 
+                    else if(selectedGenres.length < 1) { selectedGenres.push(g.id); b.classList.add('selected'); } // Limitamos a 1 para mejor precisión en Google Books
+                };
+                container.appendChild(b);
+            });
+        }
+
+        function setSearchMode(mode) {
+            currentSearchMode = mode;
+            if(mode === 'text') {
+                document.getElementById('mode-text-btn').classList.replace('text-green-600/60', 'text-green-700');
+                document.getElementById('mode-text-btn').classList.add('bg-white', 'shadow-sm');
+                document.getElementById('mode-filter-btn').classList.replace('text-green-700', 'text-green-600/60');
+                document.getElementById('mode-filter-btn').classList.remove('bg-white', 'shadow-sm');
+                document.getElementById('search-text-container').classList.remove('hidden');
+                document.getElementById('search-filter-container').classList.add('hidden');
+            } else {
+                document.getElementById('mode-filter-btn').classList.replace('text-green-600/60', 'text-green-700');
+                document.getElementById('mode-filter-btn').classList.add('bg-white', 'shadow-sm');
+                document.getElementById('mode-text-btn').classList.replace('text-green-700', 'text-green-600/60');
+                document.getElementById('mode-text-btn').classList.remove('bg-white', 'shadow-sm');
+                document.getElementById('search-filter-container').classList.remove('hidden');
+                document.getElementById('search-text-container').classList.add('hidden');
+            }
+        }
+
+        async function fetchBooks(isLoadMore = false) {
+            const container = document.getElementById('movie-results');
+            const btnMore = document.getElementById('btn-load-more');
+            document.getElementById('search-title').classList.remove('hidden');
+            
+            if(!isLoadMore) {
+                searchPage = 0; container.innerHTML = "<p class='text-center p-6 text-xs font-bold text-green-500 animate-pulse uppercase'>Buscando en la biblioteca...</p>"; btnMore.classList.add('hidden');
+            } else { searchPage += 10; btnMore.innerText = "Cargando..."; }
+
+            let queryStr = "";
+            if(currentSearchMode === 'text') {
+                const textInput = document.getElementById('search-input').value;
+                if(!textInput) { container.innerHTML = "<p class='text-center text-xs text-red-500'>Escribe el título de un libro.</p>"; return; }
+                queryStr = encodeURIComponent(textInput);
+            } else {
+                const genre = selectedGenres[0];
+                if(!genre) { container.innerHTML = "<p class='text-center text-xs text-red-500'>Selecciona al menos una categoría.</p>"; return; }
+                queryStr = encodeURIComponent(`subject:${genre}`);
+            }
+
+            const url = `https://www.googleapis.com/books/v1/volumes?q=${queryStr}&startIndex=${searchPage}&maxResults=10&langRestrict=es`;
+
+            try {
+                const res = await fetch(url); 
+                const data = await res.json();
+                
+                if(!isLoadMore) container.innerHTML = "";
+                if(!data.items || data.items.length === 0) { 
+                    if(!isLoadMore) container.innerHTML = "<p class='text-center text-xs font-bold text-gray-500'>No se encontraron libros.</p>"; 
+                    btnMore.classList.add('hidden');
+                    return; 
+                }
+
+                data.items.forEach(m => {
+                    const info = m.volumeInfo;
+                    const title = info.title || "Sin título";
+                    const author = info.authors ? info.authors[0] : "Autor Desconocido";
+                    const date = info.publishedDate ? info.publishedDate.split('-')[0] : 'N/A';
+                    
+                    // Portada. Google Books usa http por defecto, forzamos https
+                    let posterUrl = info.imageLinks?.thumbnail || 'https://via.placeholder.com/128x192.png?text=Sin+Portada';
+                    posterUrl = posterUrl.replace('http:', 'https:');
+
+                    // Etiquetas Verdes para Categorías
+                    const genreTags = (info.categories || []).slice(0, 2).map(g => `<span class="bg-green-100 text-green-800 px-2 py-0.5 rounded-full border border-green-300 text-[8px] font-black uppercase tracking-wider shadow-sm">${g}</span>`).join('');
+
+                    container.innerHTML += `
+                        <div onclick="openBookDetail('${m.id}')" class="glass p-3 flex gap-3 animate-up shadow-sm cursor-pointer hover:bg-white/90 group border border-green-50">
+                            <img src="${posterUrl}" class="w-16 h-24 rounded-lg object-cover shadow border border-gray-100 shrink-0">
+                            <div class="flex-1 flex flex-col justify-center overflow-hidden">
+                                <h4 class="font-black text-sm leading-tight text-gray-800 truncate w-full">${title}</h4>
+                                <p class="text-[10px] text-green-700 font-bold leading-tight mt-1 truncate w-full">${author}</p>
+                                <div class="flex flex-wrap gap-1 mt-1 mb-1">${genreTags}</div>
+                                <p class="text-[9px] text-gray-500 font-bold uppercase">${date} • 📄 ${info.pageCount || '?'} págs</p>
+                            </div>
+                        </div>`;
+                });
+                
+                if(data.items.length === 10) { btnMore.classList.remove('hidden'); btnMore.innerText = "Cargar más libros ⬇️"; } 
+                else { btnMore.classList.add('hidden'); }
+            } catch(e) { if(!isLoadMore) container.innerHTML = "<p class='text-center text-xs text-red-500 font-bold'>Error en el servidor de libros.</p>"; }
+        }
+
+        function checkFav(id) { return globalFavorites.some(f => f.user === currentUser && String(f.id) === String(id)); }
+        
+        async function toggleFav(type, id, name) {
+            event.stopPropagation(); const isFav = checkFav(id);
+            const icon = document.getElementById(`fav-icon-${id}`); if(icon) icon.innerText = isFav ? "☆" : "⭐";
+            if(isFav) globalFavorites = globalFavorites.filter(f => !(f.user === currentUser && String(f.id) === String(id)));
+            else globalFavorites.push({user: currentUser, tipo: type, id: id, nombre: name});
+            
+            await fetch(GAS_URL, { method: 'POST', mode: 'no-cors', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify({ action: 'toggleFavorite', user: currentUser, tipo: type, id_persona: id, nombre: name }) });
+            renderFavoritesTab();
+        }
+
+        // ====== DETALLE DEL LIBRO ======
+        async function openBookDetail(bookId) {
+            const modal = document.getElementById('movie-detail-modal'); 
+            modal.classList.remove('hidden');
+            document.getElementById('detail-title').innerText = "Abriendo libro...";
+            document.getElementById('detail-director').innerHTML = ""; 
+            document.getElementById('detail-producer').innerHTML = ""; 
+            document.getElementById('detail-genres-container').innerHTML = "";
+
+            try {
+                const res = await fetch(`https://www.googleapis.com/books/v1/volumes/${bookId}`);
+                const det = await res.json();
+                const info = det.volumeInfo;
+
+                const title = info.title || "Sin título";
+                const authorStr = info.authors ? info.authors.join(', ') : "Autor Desconocido";
+                const publisher = info.publisher || "Editorial independiente";
+                const year = info.publishedDate ? info.publishedDate.split('-')[0] : 'N/A';
+                const pages = info.pageCount || 0;
+                let description = info.description || "Sin sinopsis disponible.";
+                // Limpiar HTML básico de Google Books
+                description = description.replace(/<[^>]*>?/gm, ''); 
+
+                let posterUrl = info.imageLinks?.thumbnail || 'https://via.placeholder.com/300x450.png?text=Sin+Portada';
+                posterUrl = posterUrl.replace('http:', 'https:');
+                
+                const genresText = info.categories ? info.categories.join(', ') : "General";
+                const genreTags = (info.categories || []).slice(0, 3).map(g => `<span class="bg-green-100 text-green-800 px-2.5 py-1 rounded-full border border-green-300 text-[9px] font-black uppercase tracking-wider shadow-sm">${g}</span>`).join('');
+                
+                // Actualizar interfaz visual
+                document.getElementById('detail-header-bg').style.backgroundImage = `url(${posterUrl})`;
+                document.getElementById('detail-poster-img').src = posterUrl;
+                
+                document.getElementById('detail-title').innerHTML = title;
+                document.getElementById('detail-author-subtitle').innerText = authorStr;
+                
+                document.getElementById('detail-year').innerText = year;
+                document.getElementById('detail-pages').innerText = `${pages} Páginas`;
+                
+                const genreContainer = document.getElementById('detail-genres-container');
+                if (genreTags) {
+                    genreContainer.innerHTML = genreTags;
+                    genreContainer.classList.remove('hidden');
+                } else {
+                    genreContainer.classList.add('hidden');
+                }
+
+                document.getElementById('detail-overview').innerText = description;
+
+                // Lógica de favoritos para el Autor
+                if(info.authors && info.authors.length > 0) {
+                    // Creamos un ID sintético basado en el nombre para Google Books (ya que no da ID de autor)
+                    const authorId = info.authors[0].replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
+                    const star = checkFav(authorId) ? "⭐" : "☆";
+                    document.getElementById('detail-director').innerHTML = `<span class="tag-fav bg-gray-50 px-2 py-1 rounded-lg border border-gray-200 cursor-pointer w-max active:scale-95 flex items-center gap-1 text-[11px]" onclick="toggleFav('Autor', '${authorId}', '${String(info.authors[0]).replace(/['"]/g,"")}')"><span id="fav-icon-${authorId}" class="text-[10px]">${star}</span> ${info.authors[0]}</span>`;
+                } else { 
+                    document.getElementById('detail-director').innerText = "Desconocido"; 
+                }
+
+                document.getElementById('detail-producer').innerText = publisher;
+
+                // Guardar en variable global para las acciones (Usamos las mismas llaves para no romper tu Backend actual)
+                currentMovieData = { 
+                    id: det.id, 
+                    title: title.replace(/'/g, ""), 
+                    original_title: authorStr.replace(/'/g, ""), // Usamos el original_title como autor en el historial visual
+                    poster: posterUrl, 
+                    director: authorStr, // Mapeado a autor
+                    cast: publisher,     // Mapeado a editorial
+                    year: year, 
+                    type: pages,         // Hack: mandamos paginas en type
+                    genres: genresText 
+                };
+
+                const actionsDiv = document.getElementById('detail-actions');
+                const myInteractions = globalHistory.filter(h => h.usuario === currentUser && String(h.id_libro || h.id_tmdb) === String(det.id));
+                const lastState = myInteractions[myInteractions.length - 1];
+
+                if (!lastState || lastState.prioridad === 'DESCARTADA') {
+                    // Modo Explorar
+                    actionsDiv.innerHTML = `
+                        <div class="flex gap-2 mb-2">
+                            <button onclick="document.getElementById('priority-submenu').classList.remove('hidden')" class="flex-1 py-3 bg-emerald-600 text-white rounded-xl font-black shadow-lg shadow-emerald-200 active:scale-95 text-xs transition">🔖 Por leer</button>
+                            <button onclick="openFeedbackModal('${det.id}')" class="flex-1 py-3 bg-green-700 text-white rounded-xl font-black shadow-lg shadow-green-200 active:scale-95 text-xs transition">✅ Ya lo leí</button>
+                        </div>
+                        <div id="priority-submenu" class="hidden flex-col gap-2 mt-2 pt-2 border-t border-green-100">
+                            <p class="text-[9px] font-black text-center text-green-700 uppercase">¿Cuándo lo quieres leer?</p>
+                            <button onclick="changeInteractionState('¡Urgente!', 'FALSE')" class="w-full py-2 bg-red-500 text-white rounded-lg font-black text-xs active:scale-95">¡Urgente! 🔥</button>
+                            <button onclick="changeInteractionState('En la lista', 'FALSE')" class="w-full py-2 bg-orange-400 text-white rounded-lg font-black text-xs active:scale-95">En la lista 📚</button>
+                            <button onclick="changeInteractionState('Algún día', 'FALSE')" class="w-full py-2 bg-gray-200 text-gray-700 rounded-lg font-bold text-xs active:scale-95">Algún día 💤</button>
+                        </div>`;
+                } else if (lastState && (!isWatched(lastState.vista_completa) && !isWatched(lastState.leido_completo))) {
+                    // Modo Pendiente
+                    actionsDiv.innerHTML = `
+                        <button onclick="openFeedbackModal('${det.id}')" class="w-full py-3 bg-green-600 text-white rounded-xl font-black shadow-lg shadow-green-200 active:scale-95 text-xs mb-2 transition">✅ Terminado</button>
+                        <button onclick="changeInteractionState('Ninguna', 'DESCARTADA')" class="w-full py-2 bg-red-50 text-red-600 rounded-xl font-bold border border-red-100 active:scale-95 text-[10px] uppercase transition">🗑️ Descartar lectura</button>`;
+                } else {
+                    // Modo Historial (Leído)
+                    actionsDiv.innerHTML = `
+                        <div class="bg-gradient-to-r from-green-50 to-emerald-50 p-4 rounded-2xl border border-green-200 shadow-inner mt-4">
+                            <p class="text-[9px] font-black uppercase text-green-700 mb-1 tracking-widest">Tu Calificación</p>
+                            <p class="font-black text-lg text-gray-800">${lastState?.calificacion || 'Sin calificar'}</p>
+                            ${lastState?.comentario ? `<p class="italic text-gray-600 text-xs mt-2 border-l-2 border-green-300 pl-2">"${lastState.comentario}"</p>` : ''}
+                        </div>`;
+                }
+
+            } catch(e) { console.error(e); document.getElementById('detail-title').innerText = "Error cargando libro."; }
+        }
+
+        function closeDetailModal() { 
+            const m = document.getElementById('movie-detail-modal');
+            if (m) m.classList.add('hidden'); 
+        }
+
+        // Retrocompatibilidad con la DB: asumimos id_tmdb o id_libro
+        function getLatestStates() {
+            const myInteractions = globalHistory.filter(h => h.usuario === currentUser);
+            const latest = new Map();
+            myInteractions.forEach(h => latest.set((h.id_libro || h.id_tmdb), h));
+            return Array.from(latest.values());
+        }
+
+        function renderWatchlist() {
+            const container = document.getElementById('tab-prioridades');
+            const states = getLatestStates();
+            // Buscar "FALSE" en vista_completa o leido_completo (según como lo crees en el Sheet nuevo)
+            const pending = states.filter(s => (s.vista_completa === "FALSE" || s.vista_completa === false || s.leido_completo === "FALSE" || s.leido_completo === false) && s.prioridad !== 'DESCARTADA').reverse();
+            
+            container.innerHTML = "<h3 class='font-black text-sm text-green-900 pl-2'>Mi Lista de Lectura 📚</h3>";
+            if(pending.length === 0) { container.innerHTML += "<div class='glass p-6 text-center mt-2'><p class='text-xs text-green-800 font-bold'>Lista limpia. ¡Busca nuevos libros!</p></div>"; return; }
+
+            pending.forEach(p => {
+                const posterUrl = p.portada || p.poster || 'https://via.placeholder.com/200x300?text=Sin+Portada';
+                const author = p.autor || p.director || 'Desconocido';
+                const gList = (p.genero) ? String(p.genero).split(', ') : [];
+                const genreTags = gList.filter(Boolean).map(g => `<span class="bg-green-100 text-green-800 px-2 py-0.5 rounded-full border border-green-300 text-[8px] font-black uppercase tracking-wider shadow-sm">${g}</span>`).join('');
+                const itemId = p.id_libro || p.id_tmdb;
+
+                container.innerHTML += `
+                    <div onclick="openBookDetail('${itemId}')" class="bg-white p-3 rounded-2xl flex gap-3 items-center shadow-sm border border-green-100 mb-3 cursor-pointer active:scale-[0.98] transition hover:shadow-md">
+                        <img src="${posterUrl}" class="w-14 h-20 rounded-lg object-cover shadow-sm border border-gray-100 shrink-0">
+                        <div class="flex-1 pr-1 overflow-hidden">
+                            <p class="font-black text-[13px] text-gray-800 leading-tight truncate">${p.titulo}</p>
+                            <p class="text-[10px] font-bold text-green-700 leading-tight mt-0.5 truncate">${author}</p>
+                            <div class="flex flex-wrap gap-1 mt-1 mb-0.5">${genreTags}</div>
+                            <span class="inline-block px-2 py-0.5 rounded text-[8px] font-black uppercase mt-1 bg-orange-50 text-orange-600 border border-orange-100 shadow-sm">${p.prioridad}</span>
+                        </div>
+                        <button onclick="event.stopPropagation(); openFeedbackModal('${itemId}')" class="bg-emerald-500 text-white px-3 py-2 rounded-xl text-[10px] font-black shadow-lg shadow-emerald-200 active:scale-90 transition">LEÍDO ✅</button>
+                    </div>`;
+            });
+        }
+
+        function renderHistoryTab() {
+            const container = document.getElementById('tab-historial');
+            const states = getLatestStates();
+            const views = states.filter(s => isWatched(s.vista_completa) || isWatched(s.leido_completo)).reverse();
+
+            container.innerHTML = "<h3 class='font-black text-sm text-green-900 pl-2 mb-2'>Libros Terminados 🏁</h3>";
+            if(views.length === 0) { container.innerHTML += "<div class='bg-white/50 p-6 text-center rounded-2xl'><p class='text-xs text-gray-500 font-bold'>Aún no hay reseñas.</p></div>"; return; }
+
+            views.forEach(h => {
+                const posterUrl = h.portada || h.poster || 'https://via.placeholder.com/200x300?text=Sin+Portada';
+                const author = h.autor || h.director || 'Desconocido';
+                const gList = (h.genero) ? String(h.genero).split(', ') : [];
+                const genreTags = gList.filter(Boolean).map(g => `<span class="bg-green-100 text-green-800 px-2 py-0.5 rounded-full border border-green-300 text-[8px] font-black uppercase tracking-wider shadow-sm">${g}</span>`).join('');
+                const itemId = h.id_libro || h.id_tmdb;
+
+                container.innerHTML += `
+                    <div onclick="openBookDetail('${itemId}')" class="bg-white p-3 rounded-2xl text-xs shadow-sm flex gap-3 mb-3 border border-green-50 cursor-pointer active:scale-95 transition hover:shadow-md">
+                        <img src="${posterUrl}" class="w-14 h-20 rounded-lg object-cover shadow-sm border border-gray-100 shrink-0">
+                        <div class="flex-1 flex flex-col justify-center overflow-hidden">
+                            <p class="font-black text-[13px] text-gray-800 leading-tight truncate">${h.titulo}</p>
+                            <p class="text-[10px] font-bold text-green-700 leading-tight mt-0.5 truncate">${author}</p>
+                            <div class="flex flex-wrap gap-1 mt-1 mb-0.5">${genreTags}</div>
+                            <span class="text-[9px] font-black text-gray-700 bg-gray-50 border border-gray-200 px-2 py-0.5 rounded mt-1 inline-block w-max shadow-sm">${h.calificacion}</span>
+                        </div>
+                    </div>`;
+            });
+        }
+
+        function renderFavoritesTab() {
+            const container = document.getElementById('fav-list');
+            const myFavs = globalFavorites.filter(f => f.user === currentUser).reverse();
+            container.innerHTML = "";
+            if(myFavs.length === 0) { container.innerHTML = "<div class='col-span-3 text-center p-6 bg-white/50 rounded-xl border border-green-50'><p class='text-xs text-green-700 font-bold'>No hay autores favoritos.</p></div>"; return; }
+            
+            myFavs.forEach(f => {
+                let emoji = '✍️';
+                const safeName = String(f.nombre).replace(/['"]/g,"");
+                container.innerHTML += `<div onclick="fetchBooksByAuthor('${safeName}')" class="bg-white p-2 rounded-xl shadow-sm border border-green-100 flex flex-col items-center text-center cursor-pointer active:scale-95 transition hover:bg-green-50"><div class="text-2xl mb-1">${emoji}</div><p class="font-black text-[10px] text-green-900 leading-tight">${f.nombre}</p></div>`;
+            });
+        }
+
+        async function fetchBooksByAuthor(authorName) {
+            document.getElementById('fav-movies-container').classList.remove('hidden'); 
+            document.getElementById('fav-movies-title').innerText = `Obras de ${authorName}`;
+            const container = document.getElementById('fav-movies-results'); 
+            container.innerHTML = "<p class='text-center p-4 text-xs font-bold text-green-600 animate-pulse'>Buscando en la estantería...</p>";
+            try {
+                const url = `https://www.googleapis.com/books/v1/volumes?q=inauthor:${encodeURIComponent(authorName)}&maxResults=10`;
+                const res = await fetch(url);
+                const data = await res.json(); 
+                container.innerHTML = "";
+                
+                if(!data.items || data.items.length === 0) { container.innerHTML = "<p class='text-xs text-center text-gray-500'>No se encontraron libros.</p>"; return; }
+                
+                data.items.forEach(m => {
+                    const info = m.volumeInfo;
+                    let posterUrl = info.imageLinks?.thumbnail || 'https://via.placeholder.com/200x300?text=Sin+Portada';
+                    posterUrl = posterUrl.replace('http:', 'https:');
+                    
+                    const genreTags = (info.categories || []).slice(0, 2).map(g => `<span class="bg-green-100 text-green-800 px-2 py-0.5 rounded-full border border-green-300 text-[8px] font-black uppercase tracking-wider shadow-sm">${g}</span>`).join('');
+                    
+                    container.innerHTML += `
+                        <div onclick="openBookDetail('${m.id}')" class="bg-white p-3 flex gap-3 animate-up shadow-sm cursor-pointer hover:bg-green-50 rounded-2xl border border-green-100 transition">
+                            <img src="${posterUrl}" class="w-12 h-16 rounded-md object-cover shadow-sm shrink-0 border border-gray-100">
+                            <div class="flex-1 flex flex-col justify-center overflow-hidden">
+                                <h4 class="font-black text-[12px] leading-tight text-gray-800 truncate w-full">${info.title}</h4>
+                                <div class="flex flex-wrap gap-1 my-1">${genreTags}</div>
+                                <p class="text-[9px] text-gray-500 font-bold uppercase mt-0.5">${info.publishedDate ? info.publishedDate.split('-')[0] : 'N/A'} • 📄 ${info.pageCount || '?'} págs</p>
+                            </div>
+                        </div>`;
+                });
+            } catch(e) { container.innerHTML = "<p class='text-center text-xs text-red-500'>Error de conexión.</p>"; }
+        }
+
+        function closeFavMovies() { document.getElementById('fav-movies-container').classList.add('hidden'); }
+
+        async function changeInteractionState(priority, watchedState) {
+            const btn = event.target; btn.innerText = "⏳..."; btn.disabled = true;
+            
+            // Adaptamos las variables a tu Backend ideal para libros (mantenemos compatibilidad con tus llaves originales)
+            const payload = { 
+                action: 'saveInteraction', 
+                user: currentUser, 
+                movie_id: currentMovieData.id,  // El Sheet lo debería tomar como id_libro
+                title: currentMovieData.title, 
+                original_title: currentMovieData.original_title, // En el historial de libros metimos al autor aquí
+                poster: currentMovieData.poster, 
+                director: currentMovieData.director, // Autor
+                cast: currentMovieData.cast, // Editorial
+                year: currentMovieData.year, 
+                watched: watchedState, // leido_completo
+                priority: priority, 
+                rating: "", 
+                comment: "",
+                tipo_media: currentMovieData.type, // Páginas
+                genero: currentMovieData.genres 
+            };
+            
+            await fetch(GAS_URL, { method: 'POST', mode: 'no-cors', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify(payload) });
+            closeDetailModal(); setTimeout(() => { loadData(); }, 800);
+        }
+
+        function showTab(t) {
+            document.querySelectorAll('.tab-content').forEach(c => c.classList.add('hidden'));
+            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+            document.getElementById(`tab-${t}`).classList.remove('hidden');
+            document.getElementById(`btn-${t}`).classList.add('active');
+        }
+
+        function openFeedbackModal(id) {
+            event.stopPropagation(); closeDetailModal(); 
+            activeMovieIdForFeedback = id; 
+            let fallbackTitle = currentMovieData?.title || "Libro seleccionado";
+            if (!currentMovieData || String(currentMovieData.id) !== String(id)) {
+                let existing = globalHistory.find(h => String(h.id_libro || h.id_tmdb) === String(id));
+                if(existing) fallbackTitle = existing.titulo;
+            }
+            document.getElementById('f-movie-title').innerText = fallbackTitle;
+            document.getElementById('feedback-modal').classList.remove('hidden');
+        }
+
+        function closeFeedbackModal() { document.getElementById('feedback-modal').classList.add('hidden'); }
+
+        async function submitFeedback() {
+            const btn = event.target; btn.innerText = "⏳ Guardando..."; btn.disabled = true;
+            let existing = globalHistory.find(h => String(h.id_libro || h.id_tmdb) === String(activeMovieIdForFeedback) && h.usuario === currentUser);
+            
+            const payload = {
+                action: 'saveInteraction', 
+                user: currentUser, 
+                movie_id: activeMovieIdForFeedback,
+                title: document.getElementById('f-movie-title').innerText, 
+                original_title: currentMovieData?.id == activeMovieIdForFeedback ? currentMovieData.original_title : (existing?.titulo_original || ""),
+                poster: currentMovieData?.id == activeMovieIdForFeedback ? currentMovieData.poster : (existing?.portada || existing?.poster || ""),
+                director: currentMovieData?.id == activeMovieIdForFeedback ? currentMovieData.director : (existing?.autor || existing?.director || ""),
+                year: currentMovieData?.id == activeMovieIdForFeedback ? currentMovieData.year : (existing?.año || ""),
+                watched: "TRUE", // Marca como leído
+                rating: document.getElementById('f-rating').value, 
+                comment: document.getElementById('f-comment').value,
+                tipo_media: currentMovieData?.id == activeMovieIdForFeedback ? currentMovieData.type : (existing?.paginas || existing?.tipo_media || "0"),
+                genero: currentMovieData?.id == activeMovieIdForFeedback ? currentMovieData.genres : (existing?.genero || "") 
+            };
+            
+            await fetch(GAS_URL, { method:'POST', mode:'no-cors', headers: { 'Content-Type': 'text/plain' }, body:JSON.stringify(payload)});
+            btn.innerText = "GUARDAR LECTURA ✅"; btn.disabled = false;
+            closeFeedbackModal(); setTimeout(() => { loadData(); showTab('historial'); }, 600);
+        }
+
+        // ====== LÓGICA DE MATCH GRUPAL ======
+        function getLatestStatesFor(user) {
+            const userInteractions = globalHistory.filter(h => h.usuario === user);
+            const latestMap = new Map();
+            userInteractions.forEach(h => latestMap.set((h.id_libro || h.id_tmdb), h));
+            return Array.from(latestMap.values());
+        }
+
+        function openMatchModal() {
+            const otherProfiles = profiles.filter(p => p.user !== currentUser);
+            if(otherProfiles.length === 0) {
+                alert("Se necesita al menos otro lector registrado para buscar coincidencias.");
+                return;
+            }
+
+            document.getElementById('match-title-text').innerText = `💞 Book Match Global`;
+
+            const myStates = getLatestStatesFor(currentUser);
+            const myPending = myStates.filter(s => !isWatched(s.vista_completa) && !isWatched(s.leido_completo));
+            const myWatched = myStates.filter(s => isWatched(s.vista_completa) || isWatched(s.leido_completo));
+            const myFavs = globalFavorites.filter(f => f.user === currentUser);
+
+            const otherUsersData = otherProfiles.map(p => ({
+                user: p.user,
+                states: getLatestStatesFor(p.user),
+                favs: globalFavorites.filter(f => f.user === p.user)
+            }));
+
+            const matchPending = [];
+            myPending.forEach(m => {
+                const mId = m.id_libro || m.id_tmdb;
+                const matchedWith = otherUsersData
+                    .filter(ou => ou.states.some(s => (!isWatched(s.vista_completa) && !isWatched(s.leido_completo)) && String(s.id_libro || s.id_tmdb) === String(mId)))
+                    .map(ou => ou.user);
+                if (matchedWith.length > 0) { matchPending.push({ ...m, matchedWith }); }
+            });
+
+            const matchWatched = [];
+            myWatched.forEach(m => {
+                const mId = m.id_libro || m.id_tmdb;
+                const matchedWith = otherUsersData
+                    .filter(ou => ou.states.some(s => (isWatched(s.vista_completa) || isWatched(s.leido_completo)) && String(s.id_libro || s.id_tmdb) === String(mId)))
+                    .map(ou => ou.user);
+                if (matchedWith.length > 0) { matchWatched.push({ ...m, matchedWith }); }
+            });
+
+            const matchFavs = [];
+            myFavs.forEach(m => {
+                const matchedWith = otherUsersData
+                    .filter(ou => ou.favs.some(f => String(f.id) === String(m.id)))
+                    .map(ou => ou.user);
+                if (matchedWith.length > 0) { matchFavs.push({ ...m, matchedWith }); }
+            });
+
+            renderMatchList('match-pending-list', matchPending, "Por Leer");
+            renderMatchList('match-watched-list', matchWatched, "Leídos");
+            renderMatchFavs('match-favs-list', matchFavs);
+
+            document.getElementById('match-modal').classList.remove('hidden');
+        }
+
+        function closeMatchModal() { document.getElementById('match-modal').classList.add('hidden'); }
+
+        function renderMatchList(containerId, list, type) {
+            const container = document.getElementById(containerId);
+            container.innerHTML = "";
+            if(list.length === 0) {
+                container.innerHTML = `<p class="text-[10px] text-gray-500 italic px-2">No hay libros coincidentes en ${type}.</p>`;
+                return;
+            }
+            list.forEach(item => {
+                const posterUrl = item.portada || item.poster || 'https://via.placeholder.com/200x300?text=Sin+Portada';
+                const matchNames = item.matchedWith.join(', ');
+                const author = item.autor || item.director || 'Desconocido';
+                const itemId = item.id_libro || item.id_tmdb;
+                
+                const gList = item.genero ? String(item.genero).split(', ') : [];
+                const genreTags = gList.filter(Boolean).map(g => `<span class="bg-green-100 text-green-800 px-2 py-0.5 rounded-full border border-green-300 text-[8px] font-black uppercase tracking-wider shadow-sm">${g}</span>`).join('');
+                
+                container.innerHTML += `
+                    <div class="bg-white p-2 rounded-xl flex gap-3 items-center shadow-sm border border-green-50 mb-2 cursor-pointer active:scale-[0.98] transition hover:shadow-md" onclick="openBookDetail('${itemId}')">
+                        <img src="${posterUrl}" class="w-10 h-14 rounded-lg object-cover shadow-sm shrink-0 border border-gray-100">
+                        <div class="flex-1 overflow-hidden">
+                            <p class="font-black text-[11px] text-gray-800 leading-tight truncate">${item.titulo}</p>
+                            <div class="flex flex-wrap gap-1 mt-0.5 mb-0.5">${genreTags}</div>
+                            <p class="text-[8px] font-bold text-green-700 mt-0.5 truncate">${author}</p>
+                            <p class="text-[9px] font-black text-teal-600 mt-1 flex items-center gap-1">💞 ${matchNames}</p>
+                        </div>
+                    </div>`;
+            });
+        }
+
+        function renderMatchFavs(containerId, list) {
+            const container = document.getElementById(containerId);
+            container.innerHTML = "";
+            if(list.length === 0) {
+                container.innerHTML = `<div class="col-span-3"><p class="text-[10px] text-gray-500 italic px-2">No hay autores favoritos en común.</p></div>`;
+                return;
+            }
+            list.forEach(f => {
+                let emoji = '✍️';
+                const matchNames = f.matchedWith.join(', ');
+                const safeName = String(f.nombre).replace(/['"]/g,"");
+                container.innerHTML += `
+                    <div onclick="closeMatchModal(); fetchBooksByAuthor('${safeName}')" class="bg-white p-2 rounded-xl shadow-sm border border-green-50 flex flex-col items-center text-center cursor-pointer active:scale-95 transition hover:bg-green-50">
+                        <div class="text-xl mb-1">${emoji}</div>
+                        <p class="font-black text-[9px] text-green-900 leading-tight">${f.nombre}</p>
+                        <p class="text-[8px] font-black text-teal-600 mt-1 w-full truncate">💞 ${matchNames}</p>
+                    </div>`;
+            });
+        }
+    </script>
+</body>
+</html>
