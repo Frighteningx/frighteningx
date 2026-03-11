@@ -7,7 +7,6 @@
     <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>📚</text></svg>">
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
-        /* Gama de verdes claros corporativos */
         :root { --mint: #e8f5e9; --tea-green: #c8e6c9; --dark-green: #1b5e20; }
         body { background: linear-gradient(135deg, var(--mint), var(--tea-green)); min-height: 100vh; color: #2d3748; font-family: -apple-system, BlinkMacSystemFont, sans-serif; }
         .glass { background: rgba(255, 255, 255, 0.85); backdrop-filter: blur(12px); border: 1px solid rgba(255, 255, 255, 0.6); border-radius: 24px; }
@@ -71,13 +70,19 @@
                 </div>
 
                 <div id="search-text-container" class="space-y-3">
-                    <input type="text" id="search-input" placeholder="Ej: Hábitos Atómicos, El Señor de los Anillos..." class="w-full p-4 rounded-xl bg-white/90 border border-green-100 font-bold outline-none text-sm focus:border-green-400">
+                    <input type="text" id="search-input" placeholder="Ej: Hábitos Atómicos..." onkeypress="if(event.key === 'Enter') fetchBooks(false)" class="w-full p-4 rounded-xl bg-white/90 border border-green-100 font-bold outline-none text-sm focus:border-green-400">
                     <button onclick="fetchBooks(false)" class="w-full py-3 bg-green-700 text-white rounded-xl font-black shadow-lg shadow-green-200 active:scale-95 transition">BUSCAR LIBRO 🔍</button>
                 </div>
 
                 <div id="search-filter-container" class="space-y-4 hidden">
                     <div id="genre-container" class="flex flex-wrap gap-2 mt-1"></div>
-                    <button onclick="fetchBooks(false)" class="w-full py-3 bg-green-700 text-white rounded-xl font-black shadow-lg shadow-green-200 active:scale-95 transition">DESCUBRIR ✨</button>
+                    <div class="grid grid-cols-1 gap-3">
+                        <select id="order-by" class="w-full p-3 bg-white/90 rounded-xl text-xs font-bold shadow-sm outline-none border border-green-100">
+                            <option value="relevance">🔥 Ordenar por: Relevancia</option>
+                            <option value="newest">🆕 Ordenar por: Más recientes</option>
+                        </select>
+                    </div>
+                    <button onclick="fetchBooks(false)" class="w-full py-3 bg-green-700 text-white rounded-xl font-black shadow-lg shadow-green-200 active:scale-95 transition">DESCUBRIR LECTURAS ✨</button>
                 </div>
             </div>
             
@@ -214,7 +219,6 @@
     </div>
 
     <script>
-        // Google Books API no requiere Key para búsquedas públicas básicas.
         const GAS_URL = 'https://script.google.com/macros/s/AKfycbxNO-azFuxlcpeR8gUM49zhYBIixUWDNtjPjo9P-1ghkkLL1w-V4yeZt6I43pQrBnTU/exec';
 
         let currentUser = "";
@@ -222,12 +226,12 @@
         let globalHistory = [];
         let globalFavorites = [];
         let profiles = [];
-        let currentMovieData = null; // Lo mantendremos así por retrocompatibilidad de tus variables, aunque sean libros.
+        let currentMovieData = null; 
         let activeMovieIdForFeedback = null;
-        let searchPage = 0; // Google Books usa índices basados en 0 (0, 10, 20...)
+        let searchPage = 0; 
         let currentSearchMode = 'text'; 
 
-        // Categorías sugeridas para Libros
+        // Categorías literarias estándar en inglés para que Google Books las entienda bien
         const genres_books = [
             {id:"Fiction", name:"Ficción"}, {id:"Science", name:"Ciencia"}, 
             {id:"History", name:"Historia"}, {id:"Business", name:"Negocios"}, 
@@ -235,13 +239,12 @@
             {id:"Thriller", name:"Thriller"}, {id:"Biography", name:"Biografía"}
         ];
 
-        // Misiones adaptadas a KPIs de Lectura
         const MISSIONS_DB = [
             { id: 'm1', name: 'Lector Novato', desc: 'Termina de leer 1 libro.', target: 1, eval: (vistas) => vistas.length },
             { id: 'm2', name: 'Crítico Literario', desc: 'Califica 2 libros como "Obra Maestra".', target: 2, eval: (vistas) => vistas.filter(m => String(m.calificacion).includes('Obra Maestra')).length },
             { id: 'm3', name: 'Explorador', desc: 'Agrega 3 autores a favoritos.', target: 3, eval: (vistas, favs) => favs.length },
             { id: 'm4', name: 'Devorador de Libros', desc: 'Lee 5 libros en total.', target: 5, eval: (vistas) => vistas.length },
-            { id: 'm5', name: 'Lector Maratónico', desc: 'Lee más de 1000 páginas en total.', target: 1000, eval: (vistas) => vistas.reduce((sum, m) => sum + (parseInt(m.paginas) || 0), 0) }
+            { id: 'm5', name: 'Lector Maratónico', desc: 'Lee más de 1000 páginas en total.', target: 1000, eval: (vistas) => vistas.reduce((sum, m) => sum + (parseInt(m.paginas || m.tipo_media) || 0), 0) }
         ];
 
         window.onload = async () => {
@@ -324,7 +327,7 @@
             const widget = document.getElementById('missions-widget');
             const catalog = document.getElementById('missions-catalog');
             
-            const myViews = getLatestStates().filter(s => isWatched(s.vista_completa));
+            const myViews = getLatestStates().filter(s => isWatched(s.vista_completa) || isWatched(s.leido_completo));
             const myFavs = globalFavorites.filter(f => f.user === currentUser);
 
             widget.innerHTML = ""; catalog.innerHTML = "";
@@ -375,8 +378,8 @@
                 b.className = 'genre-bubble px-3 py-1.5 text-[10px] font-black uppercase rounded-lg text-green-700 bg-white border border-green-100 shadow-sm';
                 b.innerText = g.name;
                 b.onclick = () => {
-                    if(selectedGenres.includes(g.id)) { selectedGenres = selectedGenres.filter(i=>i!==g.id); b.classList.remove('selected'); b.style.backgroundColor=''; b.style.color=''; } 
-                    else if(selectedGenres.length < 1) { selectedGenres.push(g.id); b.classList.add('selected'); } // Limitamos a 1 para mejor precisión en Google Books
+                    if(selectedGenres.includes(g.id)) { selectedGenres = selectedGenres.filter(i=>i!==g.id); b.classList.remove('selected'); } 
+                    else if(selectedGenres.length < 1) { selectedGenres.push(g.id); b.classList.add('selected'); } 
                 };
                 container.appendChild(b);
             });
@@ -412,16 +415,17 @@
 
             let queryStr = "";
             if(currentSearchMode === 'text') {
-                const textInput = document.getElementById('search-input').value;
+                const textInput = document.getElementById('search-input').value.trim();
                 if(!textInput) { container.innerHTML = "<p class='text-center text-xs text-red-500'>Escribe el título de un libro.</p>"; return; }
                 queryStr = encodeURIComponent(textInput);
             } else {
                 const genre = selectedGenres[0];
-                if(!genre) { container.innerHTML = "<p class='text-center text-xs text-red-500'>Selecciona al menos una categoría.</p>"; return; }
+                if(!genre) { container.innerHTML = "<p class='text-center text-xs text-red-500'>Selecciona una categoría.</p>"; return; }
                 queryStr = encodeURIComponent(`subject:${genre}`);
             }
 
-            const url = `https://www.googleapis.com/books/v1/volumes?q=${queryStr}&startIndex=${searchPage}&maxResults=10&langRestrict=es`;
+            const orderBy = document.getElementById('order-by') ? document.getElementById('order-by').value : 'relevance';
+            const url = `https://www.googleapis.com/books/v1/volumes?q=${queryStr}&startIndex=${searchPage}&maxResults=10&orderBy=${orderBy}`;
 
             try {
                 const res = await fetch(url); 
@@ -440,11 +444,9 @@
                     const author = info.authors ? info.authors[0] : "Autor Desconocido";
                     const date = info.publishedDate ? info.publishedDate.split('-')[0] : 'N/A';
                     
-                    // Portada. Google Books usa http por defecto, forzamos https
                     let posterUrl = info.imageLinks?.thumbnail || 'https://via.placeholder.com/128x192.png?text=Sin+Portada';
                     posterUrl = posterUrl.replace('http:', 'https:');
 
-                    // Etiquetas Verdes para Categorías
                     const genreTags = (info.categories || []).slice(0, 2).map(g => `<span class="bg-green-100 text-green-800 px-2 py-0.5 rounded-full border border-green-300 text-[8px] font-black uppercase tracking-wider shadow-sm">${g}</span>`).join('');
 
                     container.innerHTML += `
@@ -461,7 +463,9 @@
                 
                 if(data.items.length === 10) { btnMore.classList.remove('hidden'); btnMore.innerText = "Cargar más libros ⬇️"; } 
                 else { btnMore.classList.add('hidden'); }
-            } catch(e) { if(!isLoadMore) container.innerHTML = "<p class='text-center text-xs text-red-500 font-bold'>Error en el servidor de libros.</p>"; }
+            } catch(e) { 
+                if(!isLoadMore) container.innerHTML = `<p class='text-center text-xs text-red-500 font-bold'>Error en el servidor: ${e.message}</p>`; 
+            }
         }
 
         function checkFav(id) { return globalFavorites.some(f => f.user === currentUser && String(f.id) === String(id)); }
@@ -476,7 +480,6 @@
             renderFavoritesTab();
         }
 
-        // ====== DETALLE DEL LIBRO ======
         async function openBookDetail(bookId) {
             const modal = document.getElementById('movie-detail-modal'); 
             modal.classList.remove('hidden');
@@ -487,6 +490,7 @@
 
             try {
                 const res = await fetch(`https://www.googleapis.com/books/v1/volumes/${bookId}`);
+                if (!res.ok) throw new Error("Libro no disponible");
                 const det = await res.json();
                 const info = det.volumeInfo;
 
@@ -496,7 +500,6 @@
                 const year = info.publishedDate ? info.publishedDate.split('-')[0] : 'N/A';
                 const pages = info.pageCount || 0;
                 let description = info.description || "Sin sinopsis disponible.";
-                // Limpiar HTML básico de Google Books
                 description = description.replace(/<[^>]*>?/gm, ''); 
 
                 let posterUrl = info.imageLinks?.thumbnail || 'https://via.placeholder.com/300x450.png?text=Sin+Portada';
@@ -505,7 +508,6 @@
                 const genresText = info.categories ? info.categories.join(', ') : "General";
                 const genreTags = (info.categories || []).slice(0, 3).map(g => `<span class="bg-green-100 text-green-800 px-2.5 py-1 rounded-full border border-green-300 text-[9px] font-black uppercase tracking-wider shadow-sm">${g}</span>`).join('');
                 
-                // Actualizar interfaz visual
                 document.getElementById('detail-header-bg').style.backgroundImage = `url(${posterUrl})`;
                 document.getElementById('detail-poster-img').src = posterUrl;
                 
@@ -525,9 +527,7 @@
 
                 document.getElementById('detail-overview').innerText = description;
 
-                // Lógica de favoritos para el Autor
                 if(info.authors && info.authors.length > 0) {
-                    // Creamos un ID sintético basado en el nombre para Google Books (ya que no da ID de autor)
                     const authorId = info.authors[0].replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
                     const star = checkFav(authorId) ? "⭐" : "☆";
                     document.getElementById('detail-director').innerHTML = `<span class="tag-fav bg-gray-50 px-2 py-1 rounded-lg border border-gray-200 cursor-pointer w-max active:scale-95 flex items-center gap-1 text-[11px]" onclick="toggleFav('Autor', '${authorId}', '${String(info.authors[0]).replace(/['"]/g,"")}')"><span id="fav-icon-${authorId}" class="text-[10px]">${star}</span> ${info.authors[0]}</span>`;
@@ -537,16 +537,15 @@
 
                 document.getElementById('detail-producer').innerText = publisher;
 
-                // Guardar en variable global para las acciones (Usamos las mismas llaves para no romper tu Backend actual)
                 currentMovieData = { 
                     id: det.id, 
                     title: title.replace(/'/g, ""), 
-                    original_title: authorStr.replace(/'/g, ""), // Usamos el original_title como autor en el historial visual
+                    original_title: authorStr.replace(/'/g, ""), 
                     poster: posterUrl, 
-                    director: authorStr, // Mapeado a autor
-                    cast: publisher,     // Mapeado a editorial
+                    director: authorStr, 
+                    cast: publisher,     
                     year: year, 
-                    type: pages,         // Hack: mandamos paginas en type
+                    type: pages,         
                     genres: genresText 
                 };
 
@@ -555,7 +554,6 @@
                 const lastState = myInteractions[myInteractions.length - 1];
 
                 if (!lastState || lastState.prioridad === 'DESCARTADA') {
-                    // Modo Explorar
                     actionsDiv.innerHTML = `
                         <div class="flex gap-2 mb-2">
                             <button onclick="document.getElementById('priority-submenu').classList.remove('hidden')" class="flex-1 py-3 bg-emerald-600 text-white rounded-xl font-black shadow-lg shadow-emerald-200 active:scale-95 text-xs transition">🔖 Por leer</button>
@@ -568,12 +566,10 @@
                             <button onclick="changeInteractionState('Algún día', 'FALSE')" class="w-full py-2 bg-gray-200 text-gray-700 rounded-lg font-bold text-xs active:scale-95">Algún día 💤</button>
                         </div>`;
                 } else if (lastState && (!isWatched(lastState.vista_completa) && !isWatched(lastState.leido_completo))) {
-                    // Modo Pendiente
                     actionsDiv.innerHTML = `
                         <button onclick="openFeedbackModal('${det.id}')" class="w-full py-3 bg-green-600 text-white rounded-xl font-black shadow-lg shadow-green-200 active:scale-95 text-xs mb-2 transition">✅ Terminado</button>
                         <button onclick="changeInteractionState('Ninguna', 'DESCARTADA')" class="w-full py-2 bg-red-50 text-red-600 rounded-xl font-bold border border-red-100 active:scale-95 text-[10px] uppercase transition">🗑️ Descartar lectura</button>`;
                 } else {
-                    // Modo Historial (Leído)
                     actionsDiv.innerHTML = `
                         <div class="bg-gradient-to-r from-green-50 to-emerald-50 p-4 rounded-2xl border border-green-200 shadow-inner mt-4">
                             <p class="text-[9px] font-black uppercase text-green-700 mb-1 tracking-widest">Tu Calificación</p>
@@ -582,7 +578,7 @@
                         </div>`;
                 }
 
-            } catch(e) { console.error(e); document.getElementById('detail-title').innerText = "Error cargando libro."; }
+            } catch(e) { console.error(e); document.getElementById('detail-title').innerText = "Error al abrir el libro."; }
         }
 
         function closeDetailModal() { 
@@ -590,7 +586,6 @@
             if (m) m.classList.add('hidden'); 
         }
 
-        // Retrocompatibilidad con la DB: asumimos id_tmdb o id_libro
         function getLatestStates() {
             const myInteractions = globalHistory.filter(h => h.usuario === currentUser);
             const latest = new Map();
@@ -601,7 +596,6 @@
         function renderWatchlist() {
             const container = document.getElementById('tab-prioridades');
             const states = getLatestStates();
-            // Buscar "FALSE" en vista_completa o leido_completo (según como lo crees en el Sheet nuevo)
             const pending = states.filter(s => (s.vista_completa === "FALSE" || s.vista_completa === false || s.leido_completo === "FALSE" || s.leido_completo === false) && s.prioridad !== 'DESCARTADA').reverse();
             
             container.innerHTML = "<h3 class='font-black text-sm text-green-900 pl-2'>Mi Lista de Lectura 📚</h3>";
@@ -707,22 +701,21 @@
         async function changeInteractionState(priority, watchedState) {
             const btn = event.target; btn.innerText = "⏳..."; btn.disabled = true;
             
-            // Adaptamos las variables a tu Backend ideal para libros (mantenemos compatibilidad con tus llaves originales)
             const payload = { 
                 action: 'saveInteraction', 
                 user: currentUser, 
-                movie_id: currentMovieData.id,  // El Sheet lo debería tomar como id_libro
+                movie_id: currentMovieData.id,  
                 title: currentMovieData.title, 
-                original_title: currentMovieData.original_title, // En el historial de libros metimos al autor aquí
+                original_title: currentMovieData.original_title, 
                 poster: currentMovieData.poster, 
-                director: currentMovieData.director, // Autor
-                cast: currentMovieData.cast, // Editorial
+                director: currentMovieData.director, 
+                cast: currentMovieData.cast, 
                 year: currentMovieData.year, 
-                watched: watchedState, // leido_completo
+                watched: watchedState, 
                 priority: priority, 
                 rating: "", 
                 comment: "",
-                tipo_media: currentMovieData.type, // Páginas
+                tipo_media: currentMovieData.type, 
                 genero: currentMovieData.genres 
             };
             
@@ -764,7 +757,7 @@
                 poster: currentMovieData?.id == activeMovieIdForFeedback ? currentMovieData.poster : (existing?.portada || existing?.poster || ""),
                 director: currentMovieData?.id == activeMovieIdForFeedback ? currentMovieData.director : (existing?.autor || existing?.director || ""),
                 year: currentMovieData?.id == activeMovieIdForFeedback ? currentMovieData.year : (existing?.año || ""),
-                watched: "TRUE", // Marca como leído
+                watched: "TRUE", 
                 rating: document.getElementById('f-rating').value, 
                 comment: document.getElementById('f-comment').value,
                 tipo_media: currentMovieData?.id == activeMovieIdForFeedback ? currentMovieData.type : (existing?.paginas || existing?.tipo_media || "0"),
@@ -776,7 +769,6 @@
             closeFeedbackModal(); setTimeout(() => { loadData(); showTab('historial'); }, 600);
         }
 
-        // ====== LÓGICA DE MATCH GRUPAL ======
         function getLatestStatesFor(user) {
             const userInteractions = globalHistory.filter(h => h.usuario === user);
             const latestMap = new Map();
